@@ -22,4 +22,9 @@ body {
   border-bottom: 5px solid #1F150C;
 }
 
+.mapboxgl-map {
+  width: 100%;
+  height: 100%;
+}
+
 
