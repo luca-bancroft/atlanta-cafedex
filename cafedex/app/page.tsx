@@ -1,15 +1,23 @@
-import CafeMap from "./components/Map";
+import HomeClient from "./components/HomeClient";
+import { getAllCafes } from "./lib/db/cafes";
+import type { Cafe } from "./data/cafes";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col h-screen">
-      <div className="navbar">
-        <h1>Cafedex</h1>
-        <p>Ola</p>
-      </div>
-      <div className="flex-1">
-        <CafeMap />
-      </div>
-    </div>
-  );
+export const dynamic = "force-dynamic";
+
+async function loadCafes(): Promise<{
+  cafes: Cafe[];
+  dbUnavailable: boolean;
+}> {
+  try {
+    const cafes = await getAllCafes();
+    return { cafes, dbUnavailable: false };
+  } catch (err) {
+    console.error("Failed to load cafes from MongoDB:", err);
+    return { cafes: [], dbUnavailable: true };
+  }
+}
+
+export default async function Home() {
+  const { cafes, dbUnavailable } = await loadCafes();
+  return <HomeClient initialCafes={cafes} dbUnavailable={dbUnavailable} />;
 }
