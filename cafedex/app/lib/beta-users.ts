@@ -1,4 +1,12 @@
 import "server-only";
+
+// Closed-beta account list. There is no sign-up flow — this is the entire
+// set of accounts allowed to log in for now. Passwords are never stored in
+// plaintext, only bcrypt hashes, and the account data itself lives outside
+// of committed source in BETA_USERS_B64 (a base64-encoded JSON array) so a
+// public repo doesn't expose usernames/hashes. Base64 (not raw JSON) avoids
+// Next.js's env-file variable expansion on `$`, which would otherwise
+// mangle bcrypt hashes like `$2b$12$...`.
 export type BetaUser = {
   id: string;
   username: string;
@@ -6,36 +14,33 @@ export type BetaUser = {
   passwordHash: string;
 };
 
-export const betaUsers: BetaUser[] = [
-  {
-    id: "1",
-    username: "LucaB_beta",
-    name: "Luca B.",
-    passwordHash:
-      "$2b$12$JjgnqY.vG6eFRNAH1T4FUe1aZzlqc5xh218mJ9BqeOTDbKCY3RhOm",
-  },
-  {
-    id: "2",
-    username: "LucaW_beta",
-    name: "Luca W.",
-    passwordHash:
-      "$2b$12$QSqJ3SohOu4BRDUlXa54ZOe2PeXiOig6dC5mCgFDgWccQndX6Ro0K",
-  },
-  {
-    id: "3",
-    username: "NoahP_beta",
-    name: "Noah P.",
-    passwordHash:
-      "$2b$12$OG24ve9L4V43uncYs3n9/Oj.lVpObhxdcLCZ1ZGG7L7yF2A4EAFju",
-  },
-  {
-    id: "4",
-    username: "EvaB_beta",
-    name: "Eva B.",
-    passwordHash:
-      "$2b$12$RnFqtDakWGdl0Uuxngoe9eu9IcWh.bv3ZV6LZE7inFDfLeIaemiHO",
-  },
-];
+function loadBetaUsers(): BetaUser[] {
+  const encoded = process.env.BETA_USERS_B64;
+  if (!encoded) {
+    throw new Error(
+      "Missing BETA_USERS_B64 environment variable (base64-encoded JSON array of beta accounts)."
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(Buffer.from(encoded, "base64").toString("utf-8"));
+  } catch (err) {
+    throw new Error(
+      `Failed to parse BETA_USERS_B64: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error("BETA_USERS_B64 must decode to a JSON array.");
+  }
+
+  return parsed as BetaUser[];
+}
+
+const betaUsers = loadBetaUsers();
 
 export function findBetaUserByUsername(username: string): BetaUser | undefined {
   const normalized = username.trim().toLowerCase();

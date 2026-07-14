@@ -232,7 +232,7 @@ export default function HomeClient({
           <div className="sidebar-box">
             <h2 className="sidebar-box-title">The Weick Index</h2>
             <p className="sidebar-box-text">
-              A 5 point community ranking assessing a cafe's whimsy. An
+              A 5 point community ranking assessing a cafe&apos;s whimsy. An
               additional star is added for distinguishment and a minus sign
               for a clear detriment.
             </p>
