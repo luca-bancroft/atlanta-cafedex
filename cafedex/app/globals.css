@@ -448,6 +448,41 @@ body {
   color: #6b5a3f;
 }
 
+.review-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.owner-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.owner-action-button {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #6b5a3f;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.owner-action-button:hover {
+  color: #412D15;
+}
+
+.owner-action-button.danger {
+  color: #8C3B24;
+}
+
+.owner-action-button.danger:hover {
+  color: #6b2c1a;
+}
+
 .add-review-button {
   align-self: flex-start;
   background: none;
@@ -741,6 +776,35 @@ body {
 .entry-field textarea:focus {
   outline: 2px solid #412D15;
   outline-offset: 1px;
+}
+
+.entry-field input[type="text"]:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.star-rating-input {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.star-rating-input-star {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 1.8rem;
+  line-height: 1;
+  color: #C9BFA0;
+  cursor: pointer;
+  transition: color 0.1s ease;
+}
+
+.star-rating-input-star.filled {
+  color: #B8732E;
+}
+
+.star-rating-input-star:hover {
+  color: #8C5A1E;
 }
 
 .criteria-buttons {

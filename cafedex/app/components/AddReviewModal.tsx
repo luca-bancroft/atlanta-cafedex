@@ -1,50 +1,49 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { WEICK_TAGS, type WeickTag } from "../lib/weick";
 import { useModalBehavior } from "../lib/useModalBehavior";
-import { CriteriaButtons, createEmptyCriteria } from "./WeickCriteriaFields";
+import StarRatingInput from "./StarRatingInput";
 import type { Review } from "../data/cafes";
+
+export type ReviewSubmission = {
+  text: string;
+  rating: number;
+};
 
 type AddReviewModalProps = {
   isOpen: boolean;
   cafeName: string;
-  authorName: string;
   onClose: () => void;
-  onSubmit: (review: Review) => Promise<void>;
+  onSubmit: (review: ReviewSubmission) => Promise<void>;
+  initialReview?: Review;
 };
 
 export default function AddReviewModal({
   isOpen,
   cafeName,
-  authorName,
   onClose,
   onSubmit,
+  initialReview,
 }: AddReviewModalProps) {
-  const [text, setText] = useState("");
-  const [metCriteria, setMetCriteria] = useState<Record<WeickTag, boolean>>(
-    createEmptyCriteria
-  );
+  const [text, setText] = useState(initialReview?.text ?? "");
+  const [rating, setRating] = useState(initialReview?.rating ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const isEditing = Boolean(initialReview);
 
   useModalBehavior(isOpen, onClose);
 
   if (!isOpen) return null;
 
   const resetForm = () => {
-    setText("");
-    setMetCriteria(createEmptyCriteria());
+    setText(initialReview?.text ?? "");
+    setRating(initialReview?.rating ?? 0);
     setError(null);
   };
 
   const handleClose = () => {
     resetForm();
     onClose();
-  };
-
-  const toggleCriterion = (tag: WeickTag) => {
-    setMetCriteria((prev) => ({ ...prev, [tag]: !prev[tag] }));
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -55,19 +54,14 @@ export default function AddReviewModal({
       setError("Add a few words for your review.");
       return;
     }
-
-    const metTags = WEICK_TAGS.filter((tag) => metCriteria[tag]);
-
-    const review: Review = {
-      author: authorName,
-      text: text.trim(),
-      rating: metTags.length,
-      metCriteria: metTags,
-    };
+    if (rating < 1) {
+      setError("Pick a star rating.");
+      return;
+    }
 
     setSubmitting(true);
     try {
-      await onSubmit(review);
+      await onSubmit({ text: text.trim(), rating });
       resetForm();
       onClose();
     } catch (err) {
@@ -92,7 +86,7 @@ export default function AddReviewModal({
       >
         <div className="modal-header">
           <h2 className="modal-title" id="add-review-title">
-            Review {cafeName}
+            {isEditing ? "Edit Your Review" : `Review ${cafeName}`}
           </h2>
           <button
             type="button"
@@ -100,7 +94,7 @@ export default function AddReviewModal({
             onClick={handleClose}
             aria-label="Close"
           >
-            x
+            ×
           </button>
         </div>
         <form className="entry-form" onSubmit={handleSubmit}>
@@ -114,10 +108,10 @@ export default function AddReviewModal({
             />
           </label>
 
-          <CriteriaButtons
-            metCriteria={metCriteria}
-            onToggleCriterion={toggleCriterion}
-          />
+          <div className="entry-field">
+            <span>Rating</span>
+            <StarRatingInput value={rating} onChange={setRating} />
+          </div>
 
           {error && <p className="login-error">{error}</p>}
 
@@ -129,8 +123,16 @@ export default function AddReviewModal({
             >
               Cancel
             </button>
-            <button type="submit" className="login-submit" disabled={submitting}>
-              {submitting ? "Posting…" : "Post Review"}
+            <button
+              type="submit"
+              className="login-submit"
+              disabled={submitting}
+            >
+              {submitting
+                ? "Saving…"
+                : isEditing
+                  ? "Save Changes"
+                  : "Post Review"}
             </button>
           </div>
         </form>

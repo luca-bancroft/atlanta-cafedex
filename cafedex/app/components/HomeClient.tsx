@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import CafeMap, { type FocusRequest } from "./Map";
 import Navbar from "./Navbar";
 import AddEntryModal from "./AddEntryModal";
-import AddReviewModal from "./AddReviewModal";
+import AddReviewModal, { type ReviewSubmission } from "./AddReviewModal";
 import WeickIndexRating from "./WeickIndexRating";
 import StarRating from "./StarRating";
 import ExpandableText from "./ExpandableText";
@@ -17,17 +17,28 @@ type HomeClientProps = {
   dbUnavailable?: boolean;
 };
 
+async function parseErrorMessage(
+  response: Response,
+  fallback: string
+): Promise<string> {
+  const body = await response.json().catch(() => null);
+  return body?.error ?? fallback;
+}
+
 export default function HomeClient({
   initialCafes,
   dbUnavailable = false,
 }: HomeClientProps) {
   const { data: session, status } = useSession();
+  const username = session?.user?.username;
   const [cafes, setCafes] = useState<Cafe[]>(initialCafes);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null);
   const [isAddEntryOpen, setIsAddEntryOpen] = useState(false);
   const [isAddReviewOpen, setIsAddReviewOpen] = useState(false);
+  const [editingCafe, setEditingCafe] = useState<Cafe | null>(null);
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
   const focusRequestId = useRef(0);
 
   const selected = useMemo(
@@ -69,6 +80,26 @@ export default function HomeClient({
     setQuery("");
   };
 
+  const openAddEntry = () => {
+    setEditingCafe(null);
+    setIsAddEntryOpen(true);
+  };
+
+  const openEditEntry = (cafe: Cafe) => {
+    setEditingCafe(cafe);
+    setIsAddEntryOpen(true);
+  };
+
+  const openAddReview = () => {
+    setEditingReview(null);
+    setIsAddReviewOpen(true);
+  };
+
+  const openEditReview = (review: Review) => {
+    setEditingReview(review);
+    setIsAddReviewOpen(true);
+  };
+
   const handleAddCafe = async (cafe: Cafe) => {
     const response = await fetch("/api/cafes", {
       method: "POST",
@@ -76,8 +107,7 @@ export default function HomeClient({
       body: JSON.stringify(cafe),
     });
     if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      throw new Error(body?.error ?? "Failed to save the cafe.");
+      throw new Error(await parseErrorMessage(response, "Failed to save the cafe."));
     }
     const saved: Cafe = await response.json();
 
@@ -86,18 +116,85 @@ export default function HomeClient({
     focusOn(saved);
   };
 
-  const handleAddReview = async (cafeId: string, review: Review) => {
+  const handleUpdateCafe = async (cafe: Cafe) => {
+    const response = await fetch(`/api/cafes/${cafe.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cafe),
+    });
+    if (!response.ok) {
+      throw new Error(
+        await parseErrorMessage(response, "Failed to update the cafe.")
+      );
+    }
+    const updated: Cafe = await response.json();
+    setCafes((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+  };
+
+  const handleDeleteCafe = async (cafeId: string) => {
+    if (!window.confirm("Delete this cafe? This can't be undone.")) return;
+
+    const response = await fetch(`/api/cafes/${cafeId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      alert(await parseErrorMessage(response, "Failed to delete the cafe."));
+      return;
+    }
+
+    setCafes((prev) => prev.filter((c) => c.id !== cafeId));
+    setSelectedId((current) => (current === cafeId ? null : current));
+  };
+
+  const handleAddReview = async (cafeId: string, review: ReviewSubmission) => {
     const response = await fetch(`/api/cafes/${cafeId}/reviews`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(review),
     });
     if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      throw new Error(body?.error ?? "Failed to save the review.");
+      throw new Error(
+        await parseErrorMessage(response, "Failed to save the review.")
+      );
     }
     const updatedCafe: Cafe = await response.json();
+    setCafes((prev) =>
+      prev.map((cafe) => (cafe.id === cafeId ? updatedCafe : cafe))
+    );
+  };
 
+  const handleUpdateReview = async (
+    cafeId: string,
+    reviewId: string,
+    review: ReviewSubmission
+  ) => {
+    const response = await fetch(`/api/cafes/${cafeId}/reviews/${reviewId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(review),
+    });
+    if (!response.ok) {
+      throw new Error(
+        await parseErrorMessage(response, "Failed to update the review.")
+      );
+    }
+    const updatedCafe: Cafe = await response.json();
+    setCafes((prev) =>
+      prev.map((cafe) => (cafe.id === cafeId ? updatedCafe : cafe))
+    );
+  };
+
+  const handleDeleteReview = async (cafeId: string, reviewId: string) => {
+    if (!window.confirm("Delete this review? This can't be undone.")) return;
+
+    const response = await fetch(`/api/cafes/${cafeId}/reviews/${reviewId}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      alert(await parseErrorMessage(response, "Failed to delete the review."));
+      return;
+    }
+    const updatedCafe: Cafe = await response.json();
     setCafes((prev) =>
       prev.map((cafe) => (cafe.id === cafeId ? updatedCafe : cafe))
     );
@@ -105,7 +202,7 @@ export default function HomeClient({
 
   return (
     <div className="flex flex-col h-screen">
-      <Navbar onAddEntry={() => setIsAddEntryOpen(true)} />
+      <Navbar onAddEntry={openAddEntry} />
       <div className="flex-1 flex overflow-hidden">
         <aside className="sidebar">
           {dbUnavailable && (
@@ -159,6 +256,24 @@ export default function HomeClient({
                       {selected.address}
                     </span>
                   )}
+                  {username && selected.createdBy === username && (
+                    <div className="owner-actions">
+                      <button
+                        type="button"
+                        className="owner-action-button"
+                        onClick={() => openEditEntry(selected)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="owner-action-button danger"
+                        onClick={() => handleDeleteCafe(selected.id)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <WeickIndexRating
                   rating={selected.rating}
@@ -186,8 +301,8 @@ export default function HomeClient({
                   <h3 className="cafe-details-reviews-title">Reviews</h3>
                   {selected.reviews.length > 0 ? (
                     <ul className="review-list">
-                      {selected.reviews.map((review, index) => (
-                        <li key={index} className="review-item">
+                      {selected.reviews.map((review) => (
+                        <li key={review.id} className="review-item">
                           <WeickIndexRating
                             rating={review.rating}
                             metCriteria={review.metCriteria}
@@ -202,9 +317,35 @@ export default function HomeClient({
                             maxLength={140}
                             quote
                           />
-                          <span className="review-author">
-                            — {review.author}
-                          </span>
+                          <div className="review-footer">
+                            <span className="review-author">
+                              — {review.author}
+                            </span>
+                            {username &&
+                              review.authorUsername === username && (
+                                <div className="owner-actions">
+                                  <button
+                                    type="button"
+                                    className="owner-action-button"
+                                    onClick={() => openEditReview(review)}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="owner-action-button danger"
+                                    onClick={() =>
+                                      handleDeleteReview(
+                                        selected.id,
+                                        review.id
+                                      )
+                                    }
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              )}
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -215,7 +356,7 @@ export default function HomeClient({
                     <button
                       type="button"
                       className="add-review-button"
-                      onClick={() => setIsAddReviewOpen(true)}
+                      onClick={openAddReview}
                     >
                       + Add Review
                     </button>
@@ -232,7 +373,7 @@ export default function HomeClient({
           <div className="sidebar-box">
             <h2 className="sidebar-box-title">The Weick Index</h2>
             <p className="sidebar-box-text">
-              A 5 point community ranking assessing a cafe&apos;s whimsy. An
+              A 5 point community ranking assessing a cafe's whimsy. An
               additional star is added for distinguishment and a minus sign
               for a clear detriment.
             </p>
@@ -255,17 +396,31 @@ export default function HomeClient({
         </div>
       </div>
       <AddEntryModal
+        key={editingCafe?.id ?? "new-entry"}
         isOpen={isAddEntryOpen}
-        onClose={() => setIsAddEntryOpen(false)}
-        onSubmit={handleAddCafe}
+        initialCafe={editingCafe ?? undefined}
+        onClose={() => {
+          setIsAddEntryOpen(false);
+          setEditingCafe(null);
+        }}
+        onSubmit={editingCafe ? handleUpdateCafe : handleAddCafe}
       />
       {selected && (
         <AddReviewModal
+          key={editingReview?.id ?? "new-review"}
           isOpen={isAddReviewOpen}
           cafeName={selected.name}
-          authorName={session?.user?.name ?? "Anonymous"}
-          onClose={() => setIsAddReviewOpen(false)}
-          onSubmit={(review) => handleAddReview(selected.id, review)}
+          initialReview={editingReview ?? undefined}
+          onClose={() => {
+            setIsAddReviewOpen(false);
+            setEditingReview(null);
+          }}
+          onSubmit={
+            editingReview
+              ? (review) =>
+                  handleUpdateReview(selected.id, editingReview.id, review)
+              : (review) => handleAddReview(selected.id, review)
+          }
         />
       )}
     </div>

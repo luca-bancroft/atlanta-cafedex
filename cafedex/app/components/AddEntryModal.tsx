@@ -16,6 +16,7 @@ type AddEntryModalProps = {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (cafe: Cafe) => Promise<void>;
+  initialCafe?: Cafe;
 };
 
 function slugify(text: string): string {
@@ -27,19 +28,41 @@ function slugify(text: string): string {
   return slug || "cafe";
 }
 
+function criteriaFromList(list: WeickTag[] | undefined): Record<WeickTag, boolean> {
+  const empty = createEmptyCriteria();
+  for (const tag of list ?? []) {
+    empty[tag] = true;
+  }
+  return empty;
+}
+
+function initialBonusMode(cafe: Cafe | undefined): BonusMode {
+  if (cafe?.distinguished) return "bonus";
+  if (cafe?.detriment) return "detriment";
+  return "none";
+}
+
 export default function AddEntryModal({
   isOpen,
   onClose,
   onSubmit,
+  initialCafe,
 }: AddEntryModalProps) {
-  const [name, setName] = useState("");
-  const [address, setAddress] = useState("");
+  const isEditing = Boolean(initialCafe);
+  const [name, setName] = useState(initialCafe?.name ?? "");
+  const [address, setAddress] = useState(initialCafe?.address ?? "");
   const [metCriteria, setMetCriteria] = useState<Record<WeickTag, boolean>>(
-    createEmptyCriteria
+    () => criteriaFromList(initialCafe?.metCriteria)
   );
-  const [bonusMode, setBonusMode] = useState<BonusMode>("none");
-  const [reason, setReason] = useState("");
-  const [description, setDescription] = useState("");
+  const [bonusMode, setBonusMode] = useState<BonusMode>(() =>
+    initialBonusMode(initialCafe)
+  );
+  const [reason, setReason] = useState(
+    initialCafe?.distinguishedReason ?? initialCafe?.detrimentReason ?? ""
+  );
+  const [description, setDescription] = useState(
+    initialCafe?.description ?? ""
+  );
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -48,12 +71,14 @@ export default function AddEntryModal({
   if (!isOpen) return null;
 
   const resetForm = () => {
-    setName("");
-    setAddress("");
-    setMetCriteria(createEmptyCriteria());
-    setBonusMode("none");
-    setReason("");
-    setDescription("");
+    setName(initialCafe?.name ?? "");
+    setAddress(initialCafe?.address ?? "");
+    setMetCriteria(criteriaFromList(initialCafe?.metCriteria));
+    setBonusMode(initialBonusMode(initialCafe));
+    setReason(
+      initialCafe?.distinguishedReason ?? initialCafe?.detrimentReason ?? ""
+    );
+    setDescription(initialCafe?.description ?? "");
     setError(null);
   };
 
@@ -70,7 +95,7 @@ export default function AddEntryModal({
     event.preventDefault();
     setError(null);
 
-    if (!name.trim() || !address.trim()) {
+    if (!name.trim() || (!isEditing && !address.trim())) {
       setError("Name and address are required.");
       return;
     }
@@ -85,32 +110,51 @@ export default function AddEntryModal({
 
     setSubmitting(true);
     try {
-      const geocoded = await geocodeAddress(address);
-      if (!geocoded) {
-        setError("Couldn't find that address. Try refining it.");
-        return;
-      }
-
       const metTags = WEICK_TAGS.filter((tag) => metCriteria[tag]);
 
-      const newCafe: Cafe = {
-        id: `${slugify(name)}-${Date.now().toString(36)}`,
-        name: name.trim(),
-        neighborhood: geocoded.neighborhood,
-        address: address.trim(),
-        longitude: geocoded.longitude,
-        latitude: geocoded.latitude,
-        rating: metTags.length,
-        metCriteria: metTags,
-        distinguished: bonusMode === "bonus",
-        distinguishedReason: bonusMode === "bonus" ? reason.trim() : undefined,
-        detriment: bonusMode === "detriment",
-        detrimentReason: bonusMode === "detriment" ? reason.trim() : undefined,
-        description: description.trim() || undefined,
-        reviews: [],
-      };
+      let cafe: Cafe;
+      if (initialCafe) {
+        cafe = {
+          ...initialCafe,
+          name: name.trim(),
+          rating: metTags.length,
+          metCriteria: metTags,
+          distinguished: bonusMode === "bonus",
+          distinguishedReason:
+            bonusMode === "bonus" ? reason.trim() : undefined,
+          detriment: bonusMode === "detriment",
+          detrimentReason:
+            bonusMode === "detriment" ? reason.trim() : undefined,
+          description: description.trim() || undefined,
+        };
+      } else {
+        const geocoded = await geocodeAddress(address);
+        if (!geocoded) {
+          setError("Couldn't find that address. Try refining it.");
+          return;
+        }
 
-      await onSubmit(newCafe);
+        cafe = {
+          id: `${slugify(name)}-${Date.now().toString(36)}`,
+          name: name.trim(),
+          neighborhood: geocoded.neighborhood,
+          address: address.trim(),
+          longitude: geocoded.longitude,
+          latitude: geocoded.latitude,
+          rating: metTags.length,
+          metCriteria: metTags,
+          distinguished: bonusMode === "bonus",
+          distinguishedReason:
+            bonusMode === "bonus" ? reason.trim() : undefined,
+          detriment: bonusMode === "detriment",
+          detrimentReason:
+            bonusMode === "detriment" ? reason.trim() : undefined,
+          description: description.trim() || undefined,
+          reviews: [],
+        };
+      }
+
+      await onSubmit(cafe);
       resetForm();
       onClose();
     } catch (err) {
@@ -135,7 +179,7 @@ export default function AddEntryModal({
       >
         <div className="modal-header">
           <h2 className="modal-title" id="add-entry-title">
-            Add a Cafe
+            {isEditing ? "Edit Cafe" : "Add a Cafe"}
           </h2>
           <button
             type="button"
@@ -158,12 +202,13 @@ export default function AddEntryModal({
           </label>
 
           <label className="entry-field">
-            <span>Address</span>
+            <span>Address{isEditing && " (can't be changed)"}</span>
             <input
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="e.g. 123 Main St, Atlanta, GA"
+              disabled={isEditing}
               required
             />
           </label>
@@ -204,7 +249,11 @@ export default function AddEntryModal({
               className="login-submit"
               disabled={submitting}
             >
-              {submitting ? "Adding…" : "Add Entry"}
+              {submitting
+                ? "Saving…"
+                : isEditing
+                  ? "Save Changes"
+                  : "Add Entry"}
             </button>
           </div>
         </form>

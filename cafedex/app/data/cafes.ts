@@ -1,10 +1,12 @@
 import type { WeickTag } from "../lib/weick";
 
 export type Review = {
+  id: string;
   author: string;
+  authorUsername: string;
   text: string;
   rating: number;
-  metCriteria: WeickTag[];
+  metCriteria?: WeickTag[];
 };
 
 export type Cafe = {
@@ -21,5 +23,6 @@ export type Cafe = {
   detriment?: boolean;
   detrimentReason?: string;
   description?: string;
+  createdBy?: string;
   reviews: Review[];
 };

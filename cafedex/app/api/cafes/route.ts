@@ -17,7 +17,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session?.user) {
+  if (!session?.user?.username) {
     return Response.json({ error: "Not authenticated." }, { status: 401 });
   }
 
@@ -35,9 +35,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid cafe payload." }, { status: 400 });
   }
 
+  const cafe: Cafe = { ...(body as Cafe), createdBy: session.user.username };
+
   try {
-    const cafe = await insertCafe(body as Cafe);
-    return Response.json(cafe, { status: 201 });
+    const saved = await insertCafe(cafe);
+    return Response.json(saved, { status: 201 });
   } catch (err) {
     console.error("Failed to insert cafe into MongoDB:", err);
     return Response.json(
