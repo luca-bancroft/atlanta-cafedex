@@ -203,7 +203,7 @@ export default function HomeClient({
   return (
     <div className="flex flex-col h-screen">
       <Navbar onAddEntry={openAddEntry} />
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden main-layout">
         <aside className="sidebar">
           {dbUnavailable && (
             <p className="db-warning">The server is not responding.</p>
@@ -386,7 +386,7 @@ export default function HomeClient({
             </ul>
           </div>
         </aside>
-        <div className="flex-1">
+        <div className="flex-1 map-panel">
           <CafeMap
             cafes={cafes}
             selected={selected}
